@@ -95,27 +95,7 @@ public class Properties <: Equatable<Properties> & ToString {
     }
 
     public func toString(): String {
-        if (this.map.size == 0) {
-            return "Properties{[]}"
-        }
-        let sb = StringBuilder("Properties{[")
-        let it = iterator()
-        var tmp: (String, String) = it.next().getOrThrow()
-        while (let Some(next) <- it.next()) {
-            //"(${k}, ${v})"
-            sb.append(r'(')
-            sb.append(tmp[0])
-            unsafe { sb.appendFromUtf8Unchecked(", ".toArray()) }
-            sb.append(tmp[1])
-            unsafe { sb.appendFromUtf8Unchecked("), ".toArray()) }
-            tmp = next
-        }
-        sb.append(r'(')
-        sb.append(tmp[0])
-        unsafe { sb.appendFromUtf8Unchecked(", ".toArray()) }
-        sb.append(tmp[1])
-        unsafe { sb.appendFromUtf8Unchecked(")]}".toArray()) }
-        return sb.toString()
+        return "Properties{${this.map.toString()}}"
     }
 }
 
