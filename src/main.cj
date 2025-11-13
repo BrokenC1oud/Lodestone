@@ -1,8 +1,13 @@
 public package Lodestone
 
-import Lodestone.utils
+import std.fs.Path
+
+import Lodestone.utils.properties.ServerPropertiesLoader
 
 main(): Int64 {
-    println("hello world")
+    let path = Path("server.properties")
+    let serverPropertiesLoader = ServerPropertiesLoader(path)
+    serverPropertiesLoader.save()
+
     return 0
 }

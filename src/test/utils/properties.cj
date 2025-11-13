@@ -25,6 +25,6 @@ class PropertiesTest {
         let properties_1 = Properties()
         let string_reader = StringReader(byte_buffer)
         properties_1.load(string_reader)
-        assertEqual<Properties>("properties", "properties_1", properties, properties_1)
+        @Assert(properties, properties_1)
     }
 }
