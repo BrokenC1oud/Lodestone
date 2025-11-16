@@ -152,6 +152,8 @@ public abstract class AbstractPropertiesHandler {
 public class ServerPropertiesHandler <: AbstractPropertiesHandler {
     public init(properties: Properties) {
         super(properties)
+
+        // register config entries here for christ's sake
         this.serverPort()
     }
 
@@ -175,5 +177,9 @@ public class ServerPropertiesLoader {
 
     public func save() {
         this.propertiesHandler.save(this.path)
+    }
+
+    public func getServerPropertiesHandler() {
+        return this.propertiesHandler
     }
 }

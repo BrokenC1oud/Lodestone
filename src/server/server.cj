@@ -1,10 +1,15 @@
 package Lodestone.server
 
 import std.env.getStdIn
+import std.collection.ArrayList
 import std.collection.ArrayQueue
+import std.net.IPSocketAddress
+import std.net.IPv4Address
+import std.net.SocketAddress
+import std.net.TcpServerSocket
+import std.net.TcpSocket
 import std.sync.AtomicInt64
 
-import Lodestone.utils.exceptions.SingletonConflictionException
 import Lodestone.utils.properties.ServerPropertiesLoader
 
 public struct PendingServerCommand {
@@ -15,15 +20,62 @@ public struct PendingServerCommand {
     }
 }
 
-public class ServerNetworkIo {
-    public init() {}
+public class ClientConnection {
+    let connection: TcpSocket
+    public init(socket: TcpSocket) {
+        this.connection = socket
+    }
 
     public func tick() {}
 }
 
-public class MinecraftServer {
-    public static var thisx: ?MinecraftServer = Option.None
+public class ServerNetworkIo {
+    var server: ?MinecraftServer
+    let listenerHandles: ArrayList<Future<Unit>>
+    let connections: ArrayList<ClientConnection>
 
+    public init() {
+        this.server = None
+        this.listenerHandles = ArrayList()
+        this.connections = ArrayList()
+    }
+
+    public func attachServer(server: MinecraftServer) {
+        this.server = server
+    }
+
+    public func bind(address: SocketAddress) {
+        listenerHandles.add(spawn { this.listenerLoop(address) })
+    }
+
+    private func listenerLoop(address: SocketAddress) {
+        try(tcpServerSocket = TcpServerSocket(bindAt: address)) {
+            tcpServerSocket.bind()
+
+            println("Listening on ${tcpServerSocket.localAddress}")
+
+            while (true) {
+                let incoming = tcpServerSocket.accept()
+                let clientConnection = ClientConnection(incoming)
+                this.connections.add(clientConnection)
+            }
+        }
+    }
+
+    public func tick() {
+        for (connection in this.connections) {
+            connection.tick()
+        }
+    }
+
+    public func stop() {
+        for (listener in this.listenerHandles) {
+            listener.cancel()
+        }
+    }
+}
+
+public class MinecraftServer {
     private let serverPropertiesLoader: ServerPropertiesLoader
     private let networkIo: ServerNetworkIo
 
@@ -33,43 +85,48 @@ public class MinecraftServer {
     private var ticks = AtomicInt64(0)
 
     private let commandQueue = ArrayQueue<PendingServerCommand>()
+    private var consoleHandler: ?Future<Unit> = Option.None
 
     public init(serverPropertiesLoader: ServerPropertiesLoader) {
         this.serverPropertiesLoader = serverPropertiesLoader
         this.networkIo = ServerNetworkIo()
-
-        if (thisx.isNone()) {
-            thisx = Option.Some(this)
-        } else {
-            throw SingletonConflictionException("Multiple MinecraftServer instance")
-        }
+        this.networkIo.attachServer(this)
     }
 
     public func setupServer() {
-        let consoleHandler = spawn {
+        this.consoleHandler = spawn {
             let bufferedReader = getStdIn()
 
             var command: ?String
-            while (!((thisx?.stopped) ?? false) && ((thisx?.running) ?? false)) {
+            while (!(this.stopped && this.running)) {
                 command = bufferedReader.readln()
                 if (command.isSome()) {
-                    thisx?.enqueueCommand(command ?? "")
+                    this.enqueueCommand(command ?? "")
                 }
             }
         }
+
+        this.networkIo.bind(IPSocketAddress(
+            IPv4Address.unspecified, 
+            UInt16(this.serverPropertiesLoader.getServerPropertiesHandler().serverPort())
+        ))
 
         this.running = true
     }
 
     public func runServer() {
-        while (thisx?.running ?? false) {
-            thisx?.tick()
+        while (this.running) {
+            this.tick()
         }
+
+        this.networkIo.stop()
+        this.consoleHandler?.cancel()
     }
 
     public func tick() {
-        thisx?.ticks.fetchAdd(1)
-        thisx?.executeQueuedCommands()
+        this.ticks.fetchAdd(1)
+        this.networkIo.tick()
+        this.executeQueuedCommands()
     }
 
     public func executeQueuedCommands() {
@@ -91,7 +148,7 @@ public class MinecraftServer {
         return this.networkIo
     }
 
-    public static func get() {
-        return thisx
+    public func get() {
+        return this
     }
 }
